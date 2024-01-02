@@ -24,6 +24,8 @@ class Game_char():
         #Счетчик собранных звезд
         self.collected_stars = 0
 
+        self.hit_points = 3
+
     def update(self, window):
         """функция отвечает за перемещение персонажа"""
         if self.moving_right and self.rect.right < self.screen_rect.right:
@@ -34,6 +36,12 @@ class Game_char():
             self.rect.y -= 1.5
         if self.moving_down and self.rect.bottom < self.screen_rect.bottom:
             self.rect.y += 1.5
+
+    def center_char(self):
+        """Перемещает персонажа в изначальное положение"""
+        self.rect.midbottom = self.screen_rect.midbottom
+        self.x = float(self.rect.x)
+
 
     def blitme(self):
         """Рисует кончателя в заданой позиции"""

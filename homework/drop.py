@@ -2,7 +2,7 @@ import pygame
 from pygame.sprite import Sprite
 
 class Drop(Sprite):
-    """Класс представляющий одну каплую дождя"""
+    """Класс представляющий одну каплю дождя"""
     def __init__(self, window):
         super().__init__()
         self.screen = window.screen

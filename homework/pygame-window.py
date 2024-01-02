@@ -1,4 +1,5 @@
 import sys
+from time import sleep
 import pygame
 from random import randint
 from game_character import Game_char
@@ -25,8 +26,9 @@ class Window:
         self.drops = pygame.sprite.Group()
         self.pigs = pygame.sprite.Group()
 
-        self.counter = 0
-        self.direction = 0
+        self.bullet_direction = 1
+
+        self.pigs_stars = 0
 
         self._create_stars()
 
@@ -41,7 +43,7 @@ class Window:
 
         while True:
             self._check_ivents()
-            if self.char.collected_stars <= 50:
+            if self.char.collected_stars <= 50 and self.char.hit_points > 0:
                 self.char.update(self)
                 self._update_stars()
                 self._update_bullets()
@@ -64,12 +66,16 @@ class Window:
         """Реагируте на нажатие клавиш"""
         if event.key == pygame.K_RIGHT:
             self.char.moving_right = True
+            self.bullet_direction = 2
         elif event.key == pygame.K_LEFT:
             self.char.moving_left = True
+            self.bullet_direction = 4
         elif event.key == pygame.K_UP:
             self.char.moving_up = True
+            self.bullet_direction = 1
         elif event.key == pygame.K_DOWN:
             self.char.moving_down = True
+            self.bullet_direction = 3
         elif event.key == pygame.K_SPACE:
             self._fire_bullet()
         elif event.key == pygame.K_q:
@@ -88,7 +94,7 @@ class Window:
 
     def _fire_bullet(self):
         """Создание нового снаряда и включение его в группу bullets"""
-        new_bullet = Bullet(self)
+        new_bullet = Bullet(self, self.bullet_direction)
         self.bullets.add(new_bullet)
 
     def _update_bullets(self):
@@ -100,11 +106,17 @@ class Window:
         for bullet in self.bullets.copy():
             if bullet.rect.bottom <= 0:
                 self.bullets.remove(bullet)
+            elif bullet.rect.bottom >= self.screen_height:
+                self.bullets.remove(bullet)
+            elif bullet.rect.left <= 0:
+                self.bullets.remove(bullet)
+            elif bullet.rect.right >= self.screen_width:
+                self.bullets.remove(bullet)
 
     def _update_stars(self):
         """Удалает звезды при столкновение
         и создает новые если они закончились на карте"""
-        # создает новые звезды, когда собраны все старые
+        # Создает новые звезды, когда собраны все старые
         if not self.stars:
             self._create_stars()
 
@@ -116,36 +128,57 @@ class Window:
                 self.stars.remove(star)
 
     def _update_drops(self):
-        """Перемещает капли дождя вниз"""
+        """Перемещает капли дождя вниз и перемещает их в самый верх
+        если они достигли дна"""
         for drop in self.drops.sprites():
             drop.rect.y += 1
-
-        #Удаляет капли вышедшие за пределы экрана
-        for drop in self.drops.copy():
             if drop.rect.bottom >= self.screen_height:
-                rect_x = drop.rect.x
-                self.drops.remove(drop)
-                self._create_drop(rect_x // 8)
+                drop.rect.y = 0
 
     def _update_pigs(self):
-        """Перемещает свиней в случайном направление"""
-        if self.counter == 0:
-            self.direction = randint(1, 4)
-
+        """Двигает свиней в случайном направление
+        и обрабатывает коллизии"""
+        #Перемещает свиней в случайном направление
         for pig in self.pigs:
-            if self.direction == 1:
-                pig.rect.y += 1
-            elif self.direction == 2:
-                pig.rect.x += 1
-            elif self.direction == 3:
-                pig.rect.y -= 1
-            elif self.direction == 4:
-                pig.rect.x -= 1
+            if pig.rect.right > self.screen_width:
+                pig.direction = 4
+                pig.direction_changer()
+            elif pig.rect.left < 0:
+                pig.direction = 2
+                pig.direction_changer()
+            elif pig.rect.top < 0:
+                pig.direction = 1
+                pig.direction_changer()
+            elif pig.rect.bottom > self.screen_height:
+                pig.direction = 3
+                pig.direction_changer()
+            else:
+                pig.direction_changer()
 
-        self.counter += 1
-        if self.counter >= 60:
-            self.counter = 0
+            if collisions := pygame.sprite.groupcollide(self.bullets, self.pigs, True, False):
+                pig.hit_points -= 1
+                if pig.hit_points == 0:
+                    self.pigs.remove((pig))
 
+        #Перемещает персонажа на исходное место
+        #и создает новых свиней в случае столкновения
+        if pygame.sprite.spritecollideany(self.char, self.pigs):
+            self._char_hit()
+
+    def _char_hit(self):
+        """Обрабатывает столкновение свиньи и персонажа"""
+        #Уменьшение здоровья у персонажа
+        self.char.hit_points -= 1
+
+        #Удаление всеx свиней с экрана
+        self.pigs.empty()
+
+        #Создает новых свиней и перемещает персонажа в центр
+        self._create_pigs()
+        self.char.center_char()
+
+        #Пауза
+        sleep(0.5)
 
     def _create_stars(self):
         """Создание звездочек :3"""
@@ -217,12 +250,11 @@ class Window:
             pig = Pig(self)
             pig_width = pig.rect.width
             pig_height = pig.rect.height
-            x_coord = randint(pig_width, self.screen_width - pig_width)
-            y_coord = randint(pig_height, self.screen_height - pig_height)
+            x_coord = randint(pig_width, self.screen_width - 2 * pig_width)
+            y_coord = randint(pig_height, self.screen_height - 2 * pig_height)
             pig.rect.x = x_coord
             pig.rect.y = y_coord
             self.pigs.add(pig)
-
 
     def _update_window(self):
         # Перерисовывает экарн при каждом проходе цикла

@@ -1,5 +1,6 @@
 import pygame
 from pygame.sprite import Sprite
+from random import randint
 
 class Pig(Sprite):
     """Класс представляющий свинью"""
@@ -22,5 +23,26 @@ class Pig(Sprite):
         # Количество здоровья у свиньи
         self.hit_points = 7
 
-        # Cобранные звезды
-        self.collected_stars = 0
+        self.counter = 0
+        self.direction = 0
+        self.duration = randint(60, 140)
+
+    def direction_changer(self, instant_change = 1):
+        """Изменяте направление движения свиньи"""
+        if self.counter == 0:
+            self.direction = randint(1, 4)
+
+        if self.direction == 1:
+            self.rect.y += 1
+        elif self.direction == 2:
+            self.rect.x += 1
+        elif self.direction == 3:
+            self.rect.y -= 1
+        elif self.direction == 4:
+            self.rect.x -= 1
+
+        self.counter +=1
+        if self.counter == self.duration or instant_change == 0:
+            self.counter = 0
+            self.duration = randint(60, 140)
+            instant_change = 1
