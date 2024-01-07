@@ -2,11 +2,14 @@ import sys
 from time import sleep
 import pygame
 from random import randint
+
 from game_character import Game_char
 from bullet import Bullet
 from star import Star
 from drop import Drop
 from pig import Pig
+from game_stats import Game_stats
+from button import Button
 
 class Window:
     """Класс для управления окном вывода игры"""
@@ -26,15 +29,20 @@ class Window:
         self.drops = pygame.sprite.Group()
         self.pigs = pygame.sprite.Group()
 
+        # Создает флаг для запуска и паузы игры
+        self.game_stats = Game_stats()
+        self.game_active = self.game_stats.game_active
+        self.game_pause = False
+
+        # Создание кнопки play
+        self.play_button = Button(self, "Play")
+
+        # Создание кнопки pause
+        self.pause_button = Button(self, "Pause")
+
         self.bullet_direction = 1
 
-        self.pigs_stars = 0
-
-        self._create_stars()
-
         self._create_drops()
-
-        self._create_pigs()
 
         self.bg_color = (255, 255, 255)
 
@@ -43,13 +51,14 @@ class Window:
 
         while True:
             self._check_ivents()
-            if self.char.collected_stars <= 50 and self.char.hit_points > 0:
-                self.char.update(self)
-                self._update_stars()
-                self._update_bullets()
-                self._update_drops()
-                self._update_pigs()
+            if not self.game_pause:
+                if self.game_active:
+                    self.char.update(self)
+                    self._update_stars()
+                    self._update_bullets()
+                    self._update_pigs()
 
+                self._update_drops()
             self._update_window()
 
     def _check_ivents(self):
@@ -61,6 +70,45 @@ class Window:
                 self._check_keydown_events(event)
             elif event.type == pygame.KEYUP:
                 self._check_keyup_events(event)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                if self.play_button.rect.collidepoint(mouse_pos):
+                    self._check_play_button()
+
+    def _check_play_button(self):
+        """Запускает игры при нажатие кнопки Play или кнопки I"""
+        if not self.game_active:
+            # Удаляет старые и создает новые звезды
+            self.stars.empty()
+            self._create_stars()
+
+            # Удаляет старых свиней и создает новых
+            self.pigs.empty()
+            self._create_pigs()
+
+            # Обновляет счет у персонажа и свиней
+            self.pigs_stars = 0
+            self.char.collected_stars = 0
+            self.char.hit_points = 3
+
+            # Перемещает персонажа в центр
+            self.char.center_char()
+
+            # Активирует игру
+            self.game_active = True
+
+        #Если функция вызвалась во время игры,
+        # значит клик предназначался кнопке, которая находиться ниже кнопки play
+        elif self.game_active and self.game_pause:
+            self._pause_button()
+
+
+    def _pause_button(self):
+        """Включает или выключает паузу в игре"""
+        if self.game_pause:
+            self.game_pause = False
+        else:
+            self.game_pause = True
 
     def _check_keydown_events(self, event):
         """Реагируте на нажатие клавиш"""
@@ -80,6 +128,10 @@ class Window:
             self._fire_bullet()
         elif event.key == pygame.K_q:
             sys.exit()
+        elif event.key == pygame.K_i:
+            self._check_play_button()
+        elif event.key == pygame.K_p:
+            self._pause_button()
 
     def _check_keyup_events(self, event):
         """Реагируте на отжатие клавиш"""
@@ -99,10 +151,10 @@ class Window:
 
     def _update_bullets(self):
         """Обновляет позиции снарядов и уничтожает старые снаряды"""
-        #Обновление позиции снаряда
+        # Обновление позиции снаряда
         self.bullets.update()
 
-        #Удаление снарядов, вышедших за края экрана
+        # Удаление снарядов, вышедших за края экрана
         for bullet in self.bullets.copy():
             if bullet.rect.bottom <= 0:
                 self.bullets.remove(bullet)
@@ -120,12 +172,16 @@ class Window:
         if not self.stars:
             self._create_stars()
 
-        # цикл удаляет звезду в случае коллизии
+        # Цикл удаляет звезду в случае коллизии
         for star in self.stars:
-            collisions = self.char.rect.colliderect(star.rect)
-            if collisions:
+            collision_char = self.char.rect.colliderect(star.rect)
+            if collision_char:
                 self.char.collected_stars += 1
                 self.stars.remove(star)
+
+        # Проверяет количество собранных звезд персонажем
+        if self.char.collected_stars >= 50:
+                    self.game_active = False
 
     def _update_drops(self):
         """Перемещает капли дождя вниз и перемещает их в самый верх
@@ -136,9 +192,8 @@ class Window:
                 drop.rect.y = 0
 
     def _update_pigs(self):
-        """Двигает свиней в случайном направление
-        и обрабатывает коллизии"""
-        #Перемещает свиней в случайном направление
+        """Двигает свиней в случайном направление и обрабатывает коллизии"""
+        # Перемещает свиней в случайном направление
         for pig in self.pigs:
             if pig.rect.right > self.screen_width:
                 pig.direction = 4
@@ -155,29 +210,42 @@ class Window:
             else:
                 pig.direction_changer()
 
-            if collisions := pygame.sprite.groupcollide(self.bullets, self.pigs, True, False):
+            # Обрабатывает коллизию со снарядом
+            if collisions := pygame.sprite.groupcollide\
+                        (self.bullets, self.pigs, True, False):
                 pig.hit_points -= 1
                 if pig.hit_points == 0:
                     self.pigs.remove((pig))
 
-        #Перемещает персонажа на исходное место
-        #и создает новых свиней в случае столкновения
+            # Обрабатывает коллизию со звездой
+            if collisions := pygame.sprite.groupcollide\
+                        (self.stars, self.pigs, True, False):
+                self.pigs_stars += 1
+                if self.pigs_stars >= 20:
+                    self.game_active = False
+
+        # Перемещает персонажа на исходное место
+        # и создает новых свиней в случае столкновения с персонажем
         if pygame.sprite.spritecollideany(self.char, self.pigs):
             self._char_hit()
 
     def _char_hit(self):
         """Обрабатывает столкновение свиньи и персонажа"""
-        #Уменьшение здоровья у персонажа
+        # Уменьшение здоровья у персонажа
         self.char.hit_points -= 1
 
-        #Удаление всеx свиней с экрана
+        # Удаление всеx свиней с экрана
         self.pigs.empty()
 
-        #Создает новых свиней и перемещает персонажа в центр
+        # Создает новых свиней и перемещает персонажа в центр
         self._create_pigs()
         self.char.center_char()
 
-        #Пауза
+        # Останавливает игры если у персонажа кончилось здоровье
+        if self.char.hit_points <=0:
+            self.game_active = False
+
+        # Пауза
         sleep(0.5)
 
     def _create_stars(self):
@@ -186,15 +254,15 @@ class Window:
         star_width = star.rect.width
         star_height = star.rect.height
 
-        # количество доступных столбцов для звезд
+        # Количество доступных столбцов для звезд
         available_space_x = self.screen_width - (2 * star_width)
         number_stars_x = available_space_x // (star_width * 2)
 
-        #количество доступных рядов для звезд
+        # Количество доступных рядов для звезд
         available_space_y = self.screen_height - (2 * star_height)
         number_stars_y = available_space_y // ( star_height * 2)
 
-        #цикл, который перебирает координты по y и x
+        # Цикл, который перебирает координты по y и x
         for row in range(number_stars_y):
             for star_number in range(number_stars_x):
                 self._create_star(row, star_number)
@@ -216,11 +284,11 @@ class Window:
         drop_width = drop.rect.width
         drop_height = drop.rect.height
 
-        #количество столбцов для капель
+        # Количество столбцов для капель
         available_space_x = self.screen_width - (2 * drop_width)
         number_drop_x = available_space_x // (drop_width * 2)
 
-        #количество рядов для капель
+        # Количество рядов для капель
         available_space_y = self.screen_height
         number_drop_y = available_space_y // (drop_height * 2)
 
@@ -257,20 +325,27 @@ class Window:
             self.pigs.add(pig)
 
     def _update_window(self):
-        # Перерисовывает экарн при каждом проходе цикла
+        # Перерисовывает экран при каждом проходе цикла
         self.screen.fill(self.bg_color)
         self.char.blitme()
         for bullet in self.bullets.sprites():
             bullet.draw_bullet()
 
-        #Отрисовывает звезды
+        # Отрисовывает звезды
         self.stars.draw(self.screen)
 
-        #Отрисовывает капли
+        # Отрисовывает капли
         self.drops.draw(self.screen)
 
         # Отрисовывает свиней
         self.pigs.draw(self.screen)
+
+        # Кнопка Play отоброжается в том случае, если игра неактивна
+        if not self.game_active:
+            self.play_button.draw_button()
+
+        if self.game_pause:
+            self.pause_button.draw_button()
 
         # Отображает последний прорисованный экран
         pygame.display.flip()

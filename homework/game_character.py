@@ -29,13 +29,13 @@ class Game_char():
     def update(self, window):
         """функция отвечает за перемещение персонажа"""
         if self.moving_right and self.rect.right < self.screen_rect.right:
-            self.rect.x += 1.5
+            self.rect.x += 1
         if self.moving_left and self.rect.left > 0:
-            self.rect.x -= 1.5
+            self.rect.x -= 1
         if self.moving_up and self.rect.top > 0:
-            self.rect.y -= 1.5
+            self.rect.y -= 1
         if self.moving_down and self.rect.bottom < self.screen_rect.bottom:
-            self.rect.y += 1.5
+            self.rect.y += 1
 
     def center_char(self):
         """Перемещает персонажа в изначальное положение"""
