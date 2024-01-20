@@ -10,6 +10,7 @@ from drop import Drop
 from pig import Pig
 from game_stats import Game_stats
 from button import Button
+from scoreboard import Scoreboard
 
 class Window:
     """Класс для управления окном вывода игры"""
@@ -18,19 +19,22 @@ class Window:
         """Инициализирует игровое окно"""
         pygame.init()
 
+        # Запускает экран
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         self.screen_width = self.screen.get_rect().width
         self.screen_height = self.screen.get_rect().height
         pygame.display.set_caption("Blue Window")
 
+        # Создает экземпляры импортированных классов
         self.char = Game_char(self)
         self.bullets = pygame.sprite.Group()
         self.stars = pygame.sprite.Group()
         self.drops = pygame.sprite.Group()
         self.pigs = pygame.sprite.Group()
+        self.game_stats = Game_stats()
+        self.sb = Scoreboard(self)
 
         # Создает флаг для запуска и паузы игры
-        self.game_stats = Game_stats()
         self.game_active = self.game_stats.game_active
         self.game_pause = False
 
@@ -46,10 +50,15 @@ class Window:
 
         self.bg_color = (255, 255, 255)
 
+        # Установка фиксированного фпс в игре
+        self.clock = pygame.time.Clock()
+        self.FPS = 180
+
     def run_window(self):
         "Основной цикл игры"
 
         while True:
+            self.clock.tick(self.FPS)
             self._check_ivents()
             if not self.game_pause:
                 if self.game_active:
@@ -87,12 +96,16 @@ class Window:
             self._create_pigs()
 
             # Обновляет счет у персонажа и свиней
-            self.pigs_stars = 0
-            self.char.collected_stars = 0
-            self.char.hit_points = 3
+            self.game_stats.reset_stats()
+            self.sb.prep_score()
+            self.sb.prep_pig_score()
+            self.sb.prep_hearts()
 
             # Перемещает персонажа в центр
             self.char.center_char()
+
+            # Скрывает курсор
+            pygame.mouse.set_visible(False)
 
             # Активирует игру
             self.game_active = True
@@ -106,8 +119,10 @@ class Window:
     def _pause_button(self):
         """Включает или выключает паузу в игре"""
         if self.game_pause:
+            pygame.mouse.set_visible(False)
             self.game_pause = False
         else:
+            pygame.mouse.set_visible(True)
             self.game_pause = True
 
     def _check_keydown_events(self, event):
@@ -176,12 +191,13 @@ class Window:
         for star in self.stars:
             collision_char = self.char.rect.colliderect(star.rect)
             if collision_char:
-                self.char.collected_stars += 1
+                self.game_stats.person_star_score += 1
+                self.sb.prep_score()
                 self.stars.remove(star)
 
         # Проверяет количество собранных звезд персонажем
-        if self.char.collected_stars >= 50:
-                    self.game_active = False
+        if self.game_stats.person_star_score >= 50:
+            self.game_active = False
 
     def _update_drops(self):
         """Перемещает капли дождя вниз и перемещает их в самый верх
@@ -220,8 +236,9 @@ class Window:
             # Обрабатывает коллизию со звездой
             if collisions := pygame.sprite.groupcollide\
                         (self.stars, self.pigs, True, False):
-                self.pigs_stars += 1
-                if self.pigs_stars >= 20:
+                self.game_stats.pigs_star_score += 1
+                self.sb.prep_pig_score()
+                if self.game_stats.pigs_star_score >= 20:
                     self.game_active = False
 
         # Перемещает персонажа на исходное место
@@ -232,7 +249,8 @@ class Window:
     def _char_hit(self):
         """Обрабатывает столкновение свиньи и персонажа"""
         # Уменьшение здоровья у персонажа
-        self.char.hit_points -= 1
+        self.game_stats.person_hp -= 1
+        self.sb.prep_hearts()
 
         # Удаление всеx свиней с экрана
         self.pigs.empty()
@@ -242,7 +260,8 @@ class Window:
         self.char.center_char()
 
         # Останавливает игры если у персонажа кончилось здоровье
-        if self.char.hit_points <=0:
+        if self.game_stats.person_hp <=0:
+            self.game_stats.reset_stats_completely()
             self.game_active = False
 
         # Пауза
@@ -259,8 +278,8 @@ class Window:
         number_stars_x = available_space_x // (star_width * 2)
 
         # Количество доступных рядов для звезд
-        available_space_y = self.screen_height - (2 * star_height)
-        number_stars_y = available_space_y // ( star_height * 2)
+        available_space_y = self.screen_height - (3 * star_height)
+        number_stars_y = available_space_y // (star_height * 2)
 
         # Цикл, который перебирает координты по y и x
         for row in range(number_stars_y):
@@ -273,7 +292,7 @@ class Window:
         star_width = star.rect.width
         star_height = star.rect.height
         star.rect.x = (2 * star_width) * star_number
-        star.rect.y = (2 * star_height) * row
+        star.rect.y = star_width + (2 * star_height) * row
         key = randint(1,3)
         if key == 2:
             self.stars.add(star)
@@ -340,8 +359,12 @@ class Window:
         # Отрисовывает свиней
         self.pigs.draw(self.screen)
 
+        # Оображение счета
+        self.sb.show_score()
+
         # Кнопка Play отоброжается в том случае, если игра неактивна
         if not self.game_active:
+            pygame.mouse.set_visible(True)
             self.play_button.draw_button()
 
         if self.game_pause:

@@ -25,7 +25,7 @@ class Pig(Sprite):
 
         self.counter = 0
         self.direction = 0
-        self.duration = randint(60, 140)
+        self.duration = randint(80, 160)
 
     def direction_changer(self, instant_change = 1):
         """Изменяте направление движения свиньи"""
